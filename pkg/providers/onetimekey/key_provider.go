@@ -1,4 +1,4 @@
-package simple_key
+package onetimekey
 
 import (
 	"crypto/rand"
