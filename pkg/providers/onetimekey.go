@@ -1,4 +1,4 @@
-package onetimekey
+package providers
 
 import (
 	"crypto/rand"
@@ -9,18 +9,18 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type StaticKeyProvider struct {
+type OneTimeKeyProvider struct {
 	public  []byte
 	private []byte
 }
 
 // GenerateKey implements services.KeyGen.
-func NewStaticKeyProvider() *StaticKeyProvider {
-	return &StaticKeyProvider{}
+func NewStaticKeyProvider() *OneTimeKeyProvider {
+	return &OneTimeKeyProvider{}
 }
 
 // RetireveKey implements services.KeyProvider.
-func (self *StaticKeyProvider) RetireveKey() ([]byte, []byte) {
+func (self *OneTimeKeyProvider) RetireveKey() ([]byte, []byte) {
 	if self.private == nil || self.public == nil {
 		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {

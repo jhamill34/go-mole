@@ -1,4 +1,4 @@
-package sock_tunnel
+package tunnels
 
 import (
 	"bufio"
@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/jhamill34/go-mole/pkg/tunnels"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -36,8 +35,8 @@ const (
 )
 
 type SocksTunnel struct {
-	bastionService tunnels.BastionService
-	keyProvider    tunnels.KeyProvider
+	bastionService BastionService
+	keyProvider    KeyProvider
 	proxyPort      int
 
 	listener  net.Listener
@@ -47,8 +46,8 @@ type SocksTunnel struct {
 }
 
 func NewSocksTunnel(
-	bastionService tunnels.BastionService,
-	keyProvider tunnels.KeyProvider,
+	bastionService BastionService,
+	keyProvider KeyProvider,
 	proxyPort int,
 ) *SocksTunnel {
 	return &SocksTunnel{
@@ -103,7 +102,7 @@ func (self *SocksTunnel) Stop() {
 	self.wg.Wait()
 }
 
-func (self *SocksTunnel) listen(bastion *tunnels.BastionEntity) {
+func (self *SocksTunnel) listen(bastion *BastionEntity) {
 	defer self.wg.Done()
 
 	for {
@@ -123,7 +122,7 @@ func (self *SocksTunnel) listen(bastion *tunnels.BastionEntity) {
 	}
 }
 
-func (self *SocksTunnel) handleConnection(conn net.Conn, bastion *tunnels.BastionEntity) {
+func (self *SocksTunnel) handleConnection(conn net.Conn, bastion *BastionEntity) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
@@ -270,7 +269,7 @@ func address(r *bufio.Reader) (addrData AddressData, err error) {
 	return addrData, nil
 }
 
-func (self *SocksTunnel) handleRequest(req *Request, w io.Writer, bastion *tunnels.BastionEntity) {
+func (self *SocksTunnel) handleRequest(req *Request, w io.Writer, bastion *BastionEntity) {
 	switch req.cmd {
 	case cmdConnect:
 		self.handleConnect(req, w, bastion)
@@ -279,7 +278,7 @@ func (self *SocksTunnel) handleRequest(req *Request, w io.Writer, bastion *tunne
 	}
 }
 
-func (self *SocksTunnel) handleConnect(req *Request, w io.Writer, bastion *tunnels.BastionEntity) {
+func (self *SocksTunnel) handleConnect(req *Request, w io.Writer, bastion *BastionEntity) {
 	var ip net.IP
 
 	if req.address.addrType == addrTypeIPv4 || req.address.addrType == addrTypeIPv6 {

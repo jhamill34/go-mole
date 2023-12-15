@@ -1,4 +1,4 @@
-package ssh_tunnel
+package tunnels
 
 import (
 	"context"
@@ -8,14 +8,13 @@ import (
 	"net"
 	"sync"
 
-	"github.com/jhamill34/go-mole/pkg/tunnels"
 	"golang.org/x/crypto/ssh"
 )
 
 type SshTunnel struct {
-	bastionService tunnels.BastionService
-	keyProvider    tunnels.KeyProvider
-	destination    tunnels.EndpointProvider
+	bastionService BastionService
+	keyProvider    KeyProvider
+	destination    EndpointProvider
 	localPort      int
 
 	listener net.Listener
@@ -24,9 +23,9 @@ type SshTunnel struct {
 }
 
 func NewSshTunnel(
-	bastionService tunnels.BastionService,
-	keyProvider tunnels.KeyProvider,
-	destination tunnels.EndpointProvider,
+	bastionService BastionService,
+	keyProvider KeyProvider,
+	destination EndpointProvider,
 	localPort int,
 ) *SshTunnel {
 	return &SshTunnel{
@@ -88,7 +87,7 @@ func (self *SshTunnel) Stop() {
 
 func (self *SshTunnel) listen(
 	sshConfig *ssh.ClientConfig,
-	bastion *tunnels.BastionEntity,
+	bastion *BastionEntity,
 	destination string,
 ) {
 	defer self.wg.Done()
@@ -113,7 +112,7 @@ func (self *SshTunnel) listen(
 func (self *SshTunnel) forward(
 	localConn net.Conn,
 	sshConfig *ssh.ClientConfig,
-	bastion *tunnels.BastionEntity,
+	bastion *BastionEntity,
 	destination string,
 ) {
 	defer localConn.Close()
