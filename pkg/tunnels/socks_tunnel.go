@@ -35,12 +35,10 @@ const (
 )
 
 type SocksTunnel struct {
-	bastionService    BastionService
-	keyProvider       KeyProvider
-	endpointProviders []EndpointProvider
-	proxyPort         int
+	bastionService BastionService
+	keyProvider    KeyProvider
+	proxyPort      int
 
-	endpoints []EndpointInfo
 	listener  net.Listener
 	sshConfig ssh.ClientConfig
 	quit      chan struct{}
@@ -50,15 +48,13 @@ type SocksTunnel struct {
 func NewSocksTunnel(
 	bastionService BastionService,
 	keyProvider KeyProvider,
-	endpointProviders []EndpointProvider,
 	proxyPort int,
 ) *SocksTunnel {
 	return &SocksTunnel{
-		bastionService:    bastionService,
-		keyProvider:       keyProvider,
-		proxyPort:         proxyPort,
-		endpointProviders: endpointProviders,
-		quit:              make(chan struct{}),
+		bastionService: bastionService,
+		keyProvider:    keyProvider,
+		proxyPort:      proxyPort,
+		quit:           make(chan struct{}),
 	}
 }
 
@@ -71,16 +67,6 @@ func (self *SocksTunnel) Start(ctx context.Context) {
 
 	pub, priv := self.keyProvider.RetireveKey()
 	self.bastionService.PushKey(ctx, bastion, string(pub))
-
-	for _, endpointProvider := range self.endpointProviders {
-		endpointInfo, err := endpointProvider.GetEndpoint(ctx)
-		if err != nil {
-			panic(err)
-		}
-
-		log.Println("Allowlisting ", endpointInfo)
-		self.endpoints = append(self.endpoints, *endpointInfo)
-	}
 
 	signer, err := ssh.ParsePrivateKey(priv)
 	if err != nil {
@@ -294,24 +280,6 @@ func (self *SocksTunnel) handleRequest(req *Request, w io.Writer, bastion *Basti
 
 func (self *SocksTunnel) handleConnect(req *Request, w io.Writer, bastion *BastionEntity) {
 	var ip net.IP
-	var port uint16
-	port = uint16(req.address.port[0])<<8 | uint16(req.address.port[1])
-
-	// We check here against the "requested" address, not the resolved one
-	requestedAddr := fmt.Sprintf("%s:%d", req.address.addr, port)
-	allowed := false
-	for _, endpoint := range self.endpoints {
-		allowedAddr := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
-		if requestedAddr == allowedAddr {
-			allowed = true
-			break
-		}
-	}
-
-	if !allowed {
-		sendReply(w, repHostUnreachable, nil)
-		return
-	}
 
 	if req.address.addrType == addrTypeIPv4 || req.address.addrType == addrTypeIPv6 {
 		ip = net.IP(req.address.addr)
@@ -325,6 +293,9 @@ func (self *SocksTunnel) handleConnect(req *Request, w io.Writer, bastion *Basti
 
 		ip = ipAddr.IP
 	}
+
+	var port uint16
+	port = uint16(req.address.port[0])<<8 | uint16(req.address.port[1])
 
 	sshClient, err := ssh.Dial("tcp", fmt.Sprintf("%s:22", bastion.IP), &self.sshConfig)
 	if err != nil {
@@ -411,3 +382,4 @@ func sendReply(w io.Writer, reply uint8, addr *AddressData) error {
 
 	return nil
 }
+
