@@ -39,10 +39,10 @@ type SocksTunnel struct {
 	keyProvider    KeyProvider
 	proxyPort      int
 
-	listener  net.Listener
-	sshConfig ssh.ClientConfig
-	quit      chan struct{}
-	wg        sync.WaitGroup
+	listener net.Listener
+	sshConn  *ssh.Client
+	quit     chan struct{}
+	wg       sync.WaitGroup
 }
 
 func NewSocksTunnel(
@@ -72,7 +72,7 @@ func (self *SocksTunnel) Start(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	self.sshConfig = ssh.ClientConfig{
+	sshConfig := ssh.ClientConfig{
 		User: bastion.User,
 		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 			return nil
@@ -81,6 +81,12 @@ func (self *SocksTunnel) Start(ctx context.Context) {
 			ssh.PublicKeys(signer),
 		},
 	}
+	conn, err := ssh.Dial("tcp", fmt.Sprintf("%s:22", bastion.IP), &sshConfig)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Established ssh connection to %s", bastion.IP)
+	self.sshConn = conn
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", self.proxyPort))
 	if err != nil {
@@ -96,6 +102,7 @@ func (self *SocksTunnel) Start(ctx context.Context) {
 
 func (self *SocksTunnel) Stop() {
 	close(self.quit)
+	self.sshConn.Close()
 	self.listener.Close()
 
 	log.Printf("Waiting for socks clients to close")
@@ -297,13 +304,7 @@ func (self *SocksTunnel) handleConnect(req *Request, w io.Writer, bastion *Basti
 	var port uint16
 	port = uint16(req.address.port[0])<<8 | uint16(req.address.port[1])
 
-	sshClient, err := ssh.Dial("tcp", fmt.Sprintf("%s:22", bastion.IP), &self.sshConfig)
-	if err != nil {
-		panic(err)
-	}
-	defer sshClient.Close()
-
-	conn, err := sshClient.Dial("tcp", fmt.Sprintf("%s:%d", ip.String(), port))
+	conn, err := self.sshConn.Dial("tcp", fmt.Sprintf("%s:%d", ip.String(), port))
 	if err != nil {
 		msg := err.Error()
 		resp := repHostUnreachable
@@ -382,4 +383,3 @@ func sendReply(w io.Writer, reply uint8, addr *AddressData) error {
 
 	return nil
 }
-
