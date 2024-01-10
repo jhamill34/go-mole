@@ -18,6 +18,7 @@ type SshTunnel struct {
 	localPort      int
 
 	listener net.Listener
+	sshConn  *ssh.Client
 	quit     chan struct{}
 	wg       sync.WaitGroup
 }
@@ -61,6 +62,13 @@ func (self *SshTunnel) Start(ctx context.Context) {
 		},
 	}
 
+	conn, err := ssh.Dial("tcp", fmt.Sprintf("%s:22", bastion.IP), &sshConf)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Established ssh connection to %s", bastion.IP)
+	self.sshConn = conn
+
 	destination, err := self.destination.GetEndpoint(ctx)
 	if err != nil {
 		panic(err)
@@ -74,19 +82,19 @@ func (self *SshTunnel) Start(ctx context.Context) {
 
 	log.Printf("Listening on localhost:%d", self.localPort)
 	self.wg.Add(1)
-	go self.listen(&sshConf, bastion, destination.String())
+	go self.listen(bastion, destination.String())
 }
 
 func (self *SshTunnel) Stop() {
 	close(self.quit)
 	self.listener.Close()
+	self.sshConn.Close()
 
 	log.Printf("Waiting connections to close")
 	self.wg.Wait()
 }
 
 func (self *SshTunnel) listen(
-	sshConfig *ssh.ClientConfig,
 	bastion *BastionEntity,
 	destination string,
 ) {
@@ -104,27 +112,19 @@ func (self *SshTunnel) listen(
 			}
 		} else {
 			log.Printf("Accepted connection from %s", conn.RemoteAddr())
-			go self.forward(conn, sshConfig, bastion, destination)
+			go self.forward(conn, bastion, destination)
 		}
 	}
 }
 
 func (self *SshTunnel) forward(
 	localConn net.Conn,
-	sshConfig *ssh.ClientConfig,
 	bastion *BastionEntity,
 	destination string,
 ) {
 	defer localConn.Close()
 
-	conn, err := ssh.Dial("tcp", fmt.Sprintf("%s:22", bastion.IP), sshConfig)
-	if err != nil {
-		panic(err)
-	}
-	log.Printf("Established ssh connection to %s", bastion.IP)
-	defer conn.Close()
-
-	remoteConn, err := conn.Dial("tcp", destination)
+	remoteConn, err := self.sshConn.Dial("tcp", destination)
 	if err != nil {
 		panic(err)
 	}
